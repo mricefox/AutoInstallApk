@@ -3,6 +3,7 @@ package com.mricefox.autoinstallapk;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -49,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_WRITE_EXTERNAL_STORAGE_PERMISSION = 1 << 4;
     private static final int REQUEST_CODE_OPEN_DIRECTORY = 1 << 5;
     private static final String DEFAULT_APK_DIR = "/storage/emulated/0/Android/data/com.coolapk.market/files/Download";
+    private static final String DEFAULT_DIR_URI = "content://com.android.externalstorage.documents/tree/primary%3AAndroid%2Fdata%2Fcom.coolapk.market%2Ffiles%2FDownload";
 
     private Toolbar toolbar;
     private RecyclerView appListRecyclerView;
@@ -58,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private List<AppInfo> appsInfo = new ArrayList<>();
     private AppInfo installingApk;
     private boolean batchInstall;
-    private Uri baseDirectoryUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AAndroid%2Fdata%2Fcom.coolapk.market%2Ffiles%2FDownload");
+    private Uri baseDirectoryUri;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,6 +129,16 @@ public class MainActivity extends AppCompatActivity {
         });
         itemTouchHelper.attachToRecyclerView(appListRecyclerView);
 
+        SharedPreferences setting = getSharedPreferences("PrefsFile", 0);
+        String baseDirUri = setting.getString("base_dir_uri", null);
+        if (baseDirUri == null) {
+            SharedPreferences.Editor editor = setting.edit();
+            editor.putString("base_dir_uri", DEFAULT_DIR_URI);
+            editor.commit();
+            baseDirUri = DEFAULT_DIR_URI;
+        }
+        baseDirectoryUri = Uri.parse(baseDirUri);
+
         requestStoragePermission();
     }
 
@@ -191,6 +203,10 @@ public class MainActivity extends AppCompatActivity {
                     Uri uri = data.getData();
                     if (!baseDirectoryUri.equals(uri)) {
                         baseDirectoryUri = data.getData();
+                        SharedPreferences setting = getSharedPreferences("PrefsFile", 0);
+                        SharedPreferences.Editor editor = setting.edit();
+                        editor.putString("base_dir_uri", baseDirectoryUri.toString());
+                        editor.commit();
                         refreshAppListManual();
                     }
                 }
