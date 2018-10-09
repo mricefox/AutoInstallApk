@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,6 +29,8 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -51,6 +54,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_OPEN_DIRECTORY = 1 << 5;
     private static final String DEFAULT_APK_DIR = "/storage/emulated/0/Android/data/com.coolapk.market/files/Download";
     private static final String DEFAULT_DIR_URI = "content://com.android.externalstorage.documents/tree/primary%3AAndroid%2Fdata%2Fcom.coolapk.market%2Ffiles%2FDownload";
+    private static final String SP_FILE_NAME = "PrefsFile";
+    private static final String SP_KEY_BASE_DIR = "base_dir_uri";
+    private static final String SP_KEY_DELETE_APK = "delete_apk";
 
     private Toolbar toolbar;
     private RecyclerView appListRecyclerView;
@@ -68,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        getSupportActionBar().setDisplayShowTitleEnabled(false);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         refreshLayout = findViewById(R.id.refresh_layout);
@@ -129,11 +136,11 @@ public class MainActivity extends AppCompatActivity {
         });
         itemTouchHelper.attachToRecyclerView(appListRecyclerView);
 
-        SharedPreferences setting = getSharedPreferences("PrefsFile", 0);
-        String baseDirUri = setting.getString("base_dir_uri", null);
+        SharedPreferences setting = getSharedPreferences(SP_FILE_NAME, 0);
+        String baseDirUri = setting.getString(SP_KEY_BASE_DIR, null);
         if (baseDirUri == null) {
             SharedPreferences.Editor editor = setting.edit();
-            editor.putString("base_dir_uri", DEFAULT_DIR_URI);
+            editor.putString(SP_KEY_BASE_DIR, DEFAULT_DIR_URI);
             editor.commit();
             baseDirUri = DEFAULT_DIR_URI;
         }
@@ -144,7 +151,34 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu, menu);
+        getMenuInflater().inflate(R.menu.top_menu, menu);
+        MenuItem item = menu.findItem(R.id.action_setting);
+        CheckBox checkBox = (CheckBox) item.getActionView();
+        checkBox.setText("安装完成后删除文件");
+        checkBox.setTextColor(Color.WHITE);
+
+        boolean deleteApk;
+        SharedPreferences setting = getSharedPreferences(SP_FILE_NAME, 0);
+        if (!setting.contains(SP_KEY_DELETE_APK)) {
+            SharedPreferences.Editor editor = setting.edit();
+            editor.putBoolean(SP_KEY_DELETE_APK, false);
+            editor.commit();
+            deleteApk = false;
+        } else {
+            deleteApk = setting.getBoolean(SP_KEY_DELETE_APK, false);
+        }
+        checkBox.setChecked(deleteApk);
+
+        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean checked) {
+                SharedPreferences setting = getSharedPreferences(SP_FILE_NAME, 0);
+                SharedPreferences.Editor editor = setting.edit();
+                editor.putBoolean(SP_KEY_DELETE_APK, checked);
+                editor.commit();
+            }
+        });
+
         return super.onCreateOptionsMenu(menu);
     }
 
@@ -165,6 +199,8 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             case R.id.action_refresh:
                 refreshAppListManual();
+                return true;
+            case R.id.action_setting:
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -191,7 +227,30 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case REQUEST_CODE_INSTALL_APK:
-                refreshAppListManual();
+                int position = appsInfo.indexOf(installingApk);
+
+                updateSingleAppInfo(installingApk);
+                if (installingApk.apkVersionCode == installingApk.installedVersionCode) {
+                    //install success
+                    SharedPreferences setting = getSharedPreferences(SP_FILE_NAME, 0);
+                    boolean deleteApk = setting.getBoolean(SP_KEY_DELETE_APK, false);
+                    if (deleteApk) {
+                        if (installingApk.apkFile.exists()) {
+                            installingApk.apkFile.delete();
+                        }
+                        appsInfo.remove(installingApk);
+                        appListAdapter.notifyItemRemoved(position);
+                    } else {
+                        appListRecyclerView.getAdapter().notifyItemChanged(position);
+                    }
+                } else {
+                    //install fail
+                    installingApk.broken = true;
+                    appListRecyclerView.getAdapter().notifyItemChanged(position);
+                }
+
+                installingApk = null;
+
                 if (batchInstall) {
                     startInstall();
                 }
@@ -203,9 +262,9 @@ public class MainActivity extends AppCompatActivity {
                     Uri uri = data.getData();
                     if (!baseDirectoryUri.equals(uri)) {
                         baseDirectoryUri = data.getData();
-                        SharedPreferences setting = getSharedPreferences("PrefsFile", 0);
+                        SharedPreferences setting = getSharedPreferences(SP_FILE_NAME, 0);
                         SharedPreferences.Editor editor = setting.edit();
-                        editor.putString("base_dir_uri", baseDirectoryUri.toString());
+                        editor.putString(SP_KEY_BASE_DIR, baseDirectoryUri.toString());
                         editor.commit();
                         refreshAppListManual();
                     }
@@ -348,6 +407,7 @@ public class MainActivity extends AppCompatActivity {
                 public void onClick(View v) {
                     if (appInfo.needUpgrade()) {
                         batchInstall = false;
+                        installingApk = appInfo;
                         InstallUtils.installApk(appInfo.apkFile, MainActivity.this, REQUEST_CODE_INSTALL_APK);
                     } else {
                         if (appInfo.apkFile.exists()) {
@@ -422,13 +482,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void startInstall() {
         for (AppInfo appInfo : appsInfo) {
-            if (appInfo.needUpgrade()) {
-                //install fail, last installing apk still there
-                if (installingApk != null && installingApk.packageName.equals(appInfo.packageName)) {
-                    Log.d(TAG, "broken apk:" + installingApk);
-                    //skip broken apk
-                    continue;
-                }
+            if (appInfo.needUpgrade() && !appInfo.broken) {
                 installingApk = appInfo;
                 InstallUtils.installApk(appInfo.apkFile, MainActivity.this, REQUEST_CODE_INSTALL_APK);
                 break;
@@ -440,5 +494,20 @@ public class MainActivity extends AppCompatActivity {
         refreshLayout.setRefreshing(true);
         initAppsInfo();
         refreshLayout.setRefreshing(false);
+    }
+
+    private void updateSingleAppInfo(AppInfo appInfo) {
+        PackageManager pm = getPackageManager();
+        List<PackageInfo> packageInfoList = pm.getInstalledPackages(0);
+
+        for (PackageInfo pkgInfo : packageInfoList) {
+            if (appInfo.packageName.equals(pkgInfo.packageName)) {
+                appInfo.name = pkgInfo.applicationInfo.loadLabel(pm).toString();
+                appInfo.installedVersionName = pkgInfo.versionName;
+                appInfo.installedVersionCode = pkgInfo.versionCode;
+                appInfo.icon = pkgInfo.applicationInfo.loadIcon(pm);
+                break;
+            }
+        }
     }
 }

@@ -19,6 +19,7 @@ public class AppInfo {
     Drawable icon;
     long apkSize;
     File apkFile;
+    boolean broken;
 
     boolean needUpgrade() {
         return installedVersionCode < apkVersionCode;

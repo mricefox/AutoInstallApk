@@ -8,7 +8,12 @@
     <item
         android:id="@+id/action_picker"
         android:icon="@drawable/ic_folder_white_24dp"
-        android:title="setup directory"
+        android:title="pick directory"
         app:showAsAction="ifRoom" />
-
+    <item
+        android:id="@+id/action_setting"
+        android:icon="@drawable/ic_settings_white_24dp"
+        android:title="setting"
+        app:actionViewClass="android.widget.CheckBox"
+        app:showAsAction="ifRoom|collapseActionView" />
 </menu>
