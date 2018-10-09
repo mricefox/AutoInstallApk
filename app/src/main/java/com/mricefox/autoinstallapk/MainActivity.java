@@ -151,6 +151,9 @@ public class MainActivity extends AppCompatActivity {
                                 , DocumentsContract.getTreeDocumentId(baseDirectoryUri)));
                 startActivityForResult(intent, REQUEST_CODE_OPEN_DIRECTORY);
                 return true;
+            case R.id.action_refresh:
+                refreshAppListManual();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -176,7 +179,7 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case REQUEST_CODE_INSTALL_APK:
-                initAppsInfo();
+                refreshAppListManual();
                 if (batchInstall) {
                     startInstall();
                 }
@@ -188,7 +191,7 @@ public class MainActivity extends AppCompatActivity {
                     Uri uri = data.getData();
                     if (!baseDirectoryUri.equals(uri)) {
                         baseDirectoryUri = data.getData();
-                        initAppsInfo();
+                        refreshAppListManual();
                     }
                 }
                 break;
@@ -201,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case REQUEST_CODE_WRITE_EXTERNAL_STORAGE_PERMISSION:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    initAppsInfo();
+                    refreshAppListManual();
                     requestEnableAccessibility();
                 } else {
                     if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
@@ -220,7 +223,7 @@ public class MainActivity extends AppCompatActivity {
         if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_CODE_WRITE_EXTERNAL_STORAGE_PERMISSION);
         } else {
-            initAppsInfo();
+            refreshAppListManual();
             requestEnableAccessibility();
         }
     }
@@ -415,5 +418,11 @@ public class MainActivity extends AppCompatActivity {
                 break;
             }
         }
+    }
+
+    private void refreshAppListManual() {
+        refreshLayout.setRefreshing(true);
+        initAppsInfo();
+        refreshLayout.setRefreshing(false);
     }
 }
