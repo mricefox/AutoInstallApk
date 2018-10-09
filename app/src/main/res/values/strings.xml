@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">AutoInstallApk</string>
+    <string name="accessibility_desc">自动安装apk</string>
+</resources>
