@@ -124,6 +124,7 @@ public class MainActivity extends AppCompatActivity {
                 int position = viewHolder.getAdapterPosition();
                 appListRecyclerView.getAdapter().notifyItemRemoved(position);
                 AppInfo appInfo = appsInfo.remove(position);
+                refreshUpdatableNumUI();
                 if (appInfo.apkFile.exists()) {
                     appInfo.apkFile.delete();
                 }
@@ -239,6 +240,7 @@ public class MainActivity extends AppCompatActivity {
                             installingApk.apkFile.delete();
                         }
                         appsInfo.remove(installingApk);
+                        refreshUpdatableNumUI();
                         appListAdapter.notifyItemRemoved(position);
                     } else {
                         appListRecyclerView.getAdapter().notifyItemChanged(position);
@@ -309,6 +311,7 @@ public class MainActivity extends AppCompatActivity {
         if (!baseApkDirectory.isDirectory()) {
             Toast.makeText(this, "Apk文件夹不存在", Toast.LENGTH_SHORT).show();
             appsInfo.clear();
+            refreshUpdatableNumUI();
             appListAdapter.notifyDataSetChanged();
             return;
         }
@@ -322,6 +325,7 @@ public class MainActivity extends AppCompatActivity {
         if (files == null || files.length == 0) {
             Toast.makeText(this, "文件夹内没有apk", Toast.LENGTH_SHORT).show();
             appsInfo.clear();
+            refreshUpdatableNumUI();
             appListAdapter.notifyDataSetChanged();
             return;
         }
@@ -330,6 +334,11 @@ public class MainActivity extends AppCompatActivity {
         Collections.sort(apks, new Comparator<File>() {
             @Override
             public int compare(File o1, File o2) {
+                if (o1.lastModified() > o2.lastModified()) {
+                    return -1;
+                } else if (o1.lastModified() < o2.lastModified()) {
+                    return 1;
+                }
                 return o1.compareTo(o2);
             }
         });
@@ -339,6 +348,7 @@ public class MainActivity extends AppCompatActivity {
         for (AppInfo info : appsInfo) {
             Log.d(TAG, "apksInfo:" + info);
         }
+        refreshUpdatableNumUI();
         appListAdapter.notifyDataSetChanged();
     }
 
@@ -414,6 +424,7 @@ public class MainActivity extends AppCompatActivity {
                             appInfo.apkFile.delete();
                         }
                         appsInfo.remove(appInfo);
+                        refreshUpdatableNumUI();
                         appListAdapter.notifyItemRemoved(position);
                     }
                 }
@@ -509,5 +520,16 @@ public class MainActivity extends AppCompatActivity {
                 break;
             }
         }
+    }
+
+    private void refreshUpdatableNumUI() {
+        getSupportActionBar().setDisplayShowTitleEnabled(true);
+        int num = 0;
+        for (AppInfo info : appsInfo) {
+            if (info.needUpgrade()) {
+                ++num;
+            }
+        }
+        getSupportActionBar().setTitle(String.format("可更新(%d)", num));
     }
 }
