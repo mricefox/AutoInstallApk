@@ -1,12 +1,15 @@
 package com.mricefox.autoinstallapk;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.DocumentsContract;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
@@ -24,7 +27,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -45,10 +47,10 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_CODE_ACCESSIBILITY_SETTINGS = 1 << 2;
     private static final int REQUEST_CODE_INSTALL_APK = 1 << 3;
     private static final int REQUEST_CODE_WRITE_EXTERNAL_STORAGE_PERMISSION = 1 << 4;
+    private static final int REQUEST_CODE_OPEN_DIRECTORY = 1 << 5;
     private static final String DEFAULT_APK_DIR = "/storage/emulated/0/Android/data/com.coolapk.market/files/Download";
 
     private Toolbar toolbar;
-    private EditText apkDirTxt;
     private RecyclerView appListRecyclerView;
     private SwipeRefreshLayout refreshLayout;
     private FloatingActionButton floatingButton;
@@ -56,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     private List<AppInfo> appsInfo = new ArrayList<>();
     private AppInfo installingApk;
     private boolean batchInstall;
+    private Uri baseDirectoryUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AAndroid%2Fdata%2Fcom.coolapk.market%2Ffiles%2FDownload");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,9 +67,6 @@ public class MainActivity extends AppCompatActivity {
         toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
-        apkDirTxt = findViewById(R.id.apk_dir_txt);
-        apkDirTxt.setText(DEFAULT_APK_DIR);
 
         refreshLayout = findViewById(R.id.refresh_layout);
 
@@ -140,9 +140,16 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.action_picker:
-                Log.d(TAG, "action_picker");
+                if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) {
+                    Toast.makeText(this, "8.0以下系统不支持选择文件夹", Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-                startActivityForResult(intent, 99);
+                intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+                        DocumentsContract.buildDocumentUriUsingTree(baseDirectoryUri
+                                , DocumentsContract.getTreeDocumentId(baseDirectoryUri)));
+                startActivityForResult(intent, REQUEST_CODE_OPEN_DIRECTORY);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -175,6 +182,15 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case REQUEST_CODE_WRITE_EXTERNAL_STORAGE_PERMISSION:
+                break;
+            case REQUEST_CODE_OPEN_DIRECTORY:
+                if (resultCode == Activity.RESULT_OK) {
+                    Uri uri = data.getData();
+                    if (!baseDirectoryUri.equals(uri)) {
+                        baseDirectoryUri = data.getData();
+                        initAppsInfo();
+                    }
+                }
                 break;
         }
     }
@@ -210,7 +226,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initAppsInfo() {
-        File baseApkDirectory = new File(apkDirTxt.getText().toString().trim());
+        File baseApkDirectory = new File(Environment.getExternalStorageDirectory()
+                , baseDirectoryUri.getPathSegments().get(1).split(":")[1]);
         if (!baseApkDirectory.isDirectory()) {
             Toast.makeText(this, "Apk文件夹不存在", Toast.LENGTH_SHORT).show();
             appsInfo.clear();
