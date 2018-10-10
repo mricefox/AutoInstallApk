@@ -17,6 +17,7 @@ import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
@@ -44,6 +45,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+
+import static com.mricefox.autoinstallapk.AutoInstallService.ACTION_FINISH_INSTALL;
+import static com.mricefox.autoinstallapk.AutoInstallService.ACTION_START_INSTALL;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "AutoInstallApk.Main";
@@ -228,6 +232,8 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case REQUEST_CODE_INSTALL_APK:
+                Log.d(TAG, "done install apk:" + installingApk);
+                LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent(ACTION_FINISH_INSTALL));
                 int position = appsInfo.indexOf(installingApk);
 
                 updateSingleAppInfo(installingApk);
@@ -418,6 +424,7 @@ public class MainActivity extends AppCompatActivity {
                     if (appInfo.needUpgrade()) {
                         batchInstall = false;
                         installingApk = appInfo;
+                        LocalBroadcastManager.getInstance(MainActivity.this).sendBroadcast(new Intent(ACTION_START_INSTALL));
                         InstallUtils.installApk(appInfo.apkFile, MainActivity.this, REQUEST_CODE_INSTALL_APK);
                     } else {
                         if (appInfo.apkFile.exists()) {
@@ -495,6 +502,8 @@ public class MainActivity extends AppCompatActivity {
         for (AppInfo appInfo : appsInfo) {
             if (appInfo.needUpgrade() && !appInfo.broken) {
                 installingApk = appInfo;
+                Log.d(TAG, "start install apk:" + installingApk);
+                LocalBroadcastManager.getInstance(this).sendBroadcast(new Intent(ACTION_START_INSTALL));
                 InstallUtils.installApk(appInfo.apkFile, MainActivity.this, REQUEST_CODE_INSTALL_APK);
                 break;
             }

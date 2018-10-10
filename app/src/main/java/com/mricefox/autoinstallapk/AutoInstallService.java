@@ -1,7 +1,13 @@
 package com.mricefox.autoinstallapk;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Messenger;
+import android.os.Process;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -16,14 +22,31 @@ import java.util.List;
  */
 
 public class AutoInstallService extends AccessibilityService {
+    public static final String ACTION_START_INSTALL = "com.mricefox.autoinstallapk.intent.action.START_INSTALL";
+    public static final String ACTION_FINISH_INSTALL = "com.mricefox.autoinstallapk.intent.action.FINISH_INSTALL";
+
     private static final String TAG = "AutoInstallApk.Svr";
+
+    private boolean enable = false;
+    private BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case ACTION_START_INSTALL:
+                    enable = true;
+                    break;
+                case ACTION_FINISH_INSTALL:
+                    enable = false;
+                    break;
+            }
+        }
+    };
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-//        Log.d(TAG, "onAccessibilityEvent pkg:" + event.getPackageName());
-//        Log.d(TAG, "onAccessibilityEvent class:" + event.getClassName());
-//        Log.d(TAG, "onAccessibilityEvent txt:" + event.getText());
-
+        if (!enable) {
+            return;
+        }
         if ("com.google.android.packageinstaller".equals(event.getPackageName())) {
             List<AccessibilityNodeInfo> nodes = event.getSource().findAccessibilityNodeInfosByText("安装");
             for (AccessibilityNodeInfo node : nodes) {
@@ -69,29 +92,36 @@ public class AutoInstallService extends AccessibilityService {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.w(TAG, "onCreate");
+        Log.d(TAG, "onCreate");
     }
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-        Log.w(TAG, "onServiceConnected");
+        Log.d(TAG, "onServiceConnected");
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_START_INSTALL);
+        filter.addAction(ACTION_FINISH_INSTALL);
+        LocalBroadcastManager.getInstance(this).registerReceiver(receiver, filter);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Log.w(TAG, "onDestroy");
+        Log.d(TAG, "onDestroy");
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
     }
 
     @Override
     public void onInterrupt() {
-
+        Log.d(TAG, "onInterrupt");
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
     }
 
     @Override
     public boolean onUnbind(Intent intent) {
-        Log.w(TAG, "onUnbind");
+        Log.d(TAG, "onUnbind");
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(receiver);
         return super.onUnbind(intent);
     }
 }
